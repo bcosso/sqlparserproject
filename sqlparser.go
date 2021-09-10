@@ -4,19 +4,18 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"os"
 )
 
 
-type QueryKeywords struct {
+type query_words struct {
 	Keyword string
 	Position int
 }
 
 type select_clause struct {
 	clause_name string
-	alias string
-	value string
-	operator string
+	type_token string
 	select_fields []select_clause
 	table_list []select_clause
 	where_list []select_clause
@@ -24,7 +23,18 @@ type select_clause struct {
 
 func main() {
 	var converted_select select_clause
+	
+	argsWithProg := os.Args
+	//Example SQL
 	str1 := "select campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1"
+
+	if argsWithProg != nil {
+		if len(argsWithProg) > 1 && argsWithProg[1] != "" {
+			str1 = argsWithProg[1]
+		}
+		//select campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1
+	}
+	
 	check_query_type(str1, &converted_select)
 
 	fmt.Println("----------------------------------------------")
@@ -48,9 +58,9 @@ func get_select_object(input_string string, result * select_clause){
 	result_select_from = get_select_fields(input_string, "from", " where")
 	result_select_where = get_select_fields(input_string, "where", "")
 
-	result.select_fields = result_select_fields
-	result.table_list = result_select_from
-	result.where_list = result_select_where
+	result.select_fields = append(result.select_fields, result_select_fields...)
+	result.table_list = append(result.table_list, result_select_from...)
+	result.where_list = append(result.where_list, result_select_where...)
 }
 
 
@@ -73,6 +83,8 @@ func get_select_fields(input_string string, command string, endcommand string) [
 		}
 		var result_ind select_clause
 		result_ind.clause_name = strings.Trim(element, command + " ")
+		result_ind.type_token = command
+		result_ind = tokenize_clause_elements(result_ind)
 		result = append(result, result_ind)
 		fmt.Println("----------------------------------------------")
 		fmt.Println("Element of query")
@@ -83,6 +95,105 @@ func get_select_fields(input_string string, command string, endcommand string) [
 	return result
 }
 
+func tokenize_clause_elements(result_ind select_clause) select_clause{
+	var digested_elements string
+	digested_elements = result_ind.clause_name
+	var current_token string
+	current_token = ""
+
+	for digested_elements != ""{
+		var result_inner select_clause
+		isdefault := false
+
+		switch digested_elements[0] {
+			case ' ':
+				//fmt.Println("Today.")
+			case '"':
+				//create a new sub object and add to it
+				 
+				sub_expression := get_sub_expression(digested_elements[strings.Index(digested_elements, "\""):len(digested_elements)], "\"", "\"")
+				fmt.Println("---------------------------")
+				fmt.Println("String:")
+				fmt.Println("---------------------------")
+				fmt.Println(sub_expression)
+				result_inner.clause_name = sub_expression
+				result_inner.type_token = "value"
+				break
+			case "'"[0]:
+				//create a new sub object and add to it
+				sub_expression := get_sub_expression(digested_elements[strings.Index(digested_elements, "'"):len(digested_elements)], "'", "'")
+				fmt.Println("---------------------------")
+				fmt.Println("String:")
+				fmt.Println("---------------------------")
+				fmt.Println(sub_expression)
+				result_inner.clause_name = sub_expression
+				result_inner.type_token = "value"
+				break
+			case "="[0]:
+				fmt.Println("---------------------------")
+				fmt.Println("Equal sign:")
+				fmt.Println("---------------------------")
+				result_inner.clause_name = current_token
+				result_inner.type_token = "field"
+				current_token = ""
+				result_ind.select_fields = append(result_ind.select_fields, result_inner)
+				result_inner.clause_name = string(digested_elements[0])
+				result_inner.type_token = "operator"
+				break
+			case ">"[0]:
+				result_inner.clause_name = current_token
+				result_inner.type_token = "field"
+				current_token = ""
+				result_ind.select_fields = append(result_ind.select_fields, result_inner)
+				result_inner.clause_name = string(digested_elements[0])
+				result_inner.type_token = "operator"
+
+				break
+			case "<"[0]:
+				result_inner.clause_name = current_token
+				result_inner.type_token = "field"
+				current_token = ""
+				result_ind.select_fields = append(result_ind.select_fields, result_inner)
+				result_inner.clause_name = string(digested_elements[0])
+				result_inner.type_token = "operator"
+				break
+			case ","[0]:
+				//create a new sub object and add to it
+				fmt.Println("---------------------------")
+				fmt.Println("Comma:")
+				fmt.Println("---------------------------")
+				fmt.Println(current_token)
+				result_inner.clause_name = current_token
+				result_inner.type_token = "field"
+				current_token = ""
+				break
+			default:
+				current_token += string(digested_elements[0])
+				isdefault = true
+				break
+		}
+		if len(digested_elements) > 0{
+			digested_elements = digested_elements[1:len(digested_elements)]
+		}
+		if isdefault == false || digested_elements == ""{
+			fmt.Println("---------------------------")
+			fmt.Println("Node:")
+			fmt.Println("---------------------------")
+			fmt.Println(current_token)
+			if digested_elements==""{
+				if result_inner.clause_name == "" { result_inner.clause_name = current_token }
+				if result_inner.type_token == ""{result_inner.type_token = "value"}
+			}
+			result_ind.select_fields = append(result_ind.select_fields, result_inner)
+		}
+	}
+	return result_ind
+}
+
+// func get_first_ocurrence(clause_to_analize){
+// 	strings.Index()
+
+// }
 
 func get_sub_expression(expression string, opening_char string, ending_char string) string{
 	result_expression := ""
@@ -137,14 +248,14 @@ func check_query_type(expression string, object_query * select_clause){
 }
 
 
-func find_location_expression(expression string)[]QueryKeywords {
-	keyword_list := []QueryKeywords{
+func find_location_expression(expression string)[]query_words {
+	keyword_list := []query_words{
 		{"SELECT", 0},
 		{"FROM", 0},
 		{"WHERE", 0},
 	}
 	
-	var result []QueryKeywords
+	var result []query_words
 	countInt := 0
 	for _, element := range keyword_list {
 		currentIndex := strings.Index(strings.ToUpper(expression), element.Keyword)
