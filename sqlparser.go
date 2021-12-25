@@ -26,7 +26,7 @@ func main() {
 	
 	argsWithProg := os.Args
 	//Example SQL
-	str1 := "select campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1"
+	str1 := "select  campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1 "
 
 	if argsWithProg != nil {
 		if len(argsWithProg) > 1 && argsWithProg[1] != "" {
@@ -54,8 +54,8 @@ func get_select_object(input_string string, result * select_clause){
 	var result_select_where []select_clause
 
 
-	result_select_fields = get_select_fields(input_string, "select", " from")
-	result_select_from = get_select_fields(input_string, "from", " where")
+	result_select_fields = get_select_fields(input_string, "select", "from")
+	result_select_from = get_select_fields(input_string, "from", "where")
 	result_select_where = get_select_fields(input_string, "where", "")
 
 	result.select_fields = append(result.select_fields, result_select_fields...)
@@ -68,22 +68,33 @@ func get_select_fields(input_string string, command string, endcommand string) [
 	var result []select_clause
 
 	if strings.Index(input_string, command) < 0 { return nil }
-	re := regexp.MustCompile(command + ` [.*]` + endcommand)
+	re := regexp.MustCompile(command + `[.*]` + endcommand)
 	fmt.Printf("Pattern: %v\n", re.String()) // print pattern
 
 	submatchall := re.Split(input_string, -1)
 	for _, element := range submatchall {
+
+
 		if endcommand != "" {
 			if strings.Index(element, endcommand) > 0 {
 				element = element[0:strings.Index(element, endcommand)]
 			}
 		}
-		if strings.Index(element, command) > 0 {
-			element = element[strings.Index(element, command): len(element) -1]
+		if strings.Index(element, command) > -1 {
+			element = element[strings.Index(element, command): len(element)]
 		}
 		var result_ind select_clause
-		result_ind.clause_name = strings.Trim(element, command + " ")
+		result_ind.clause_name = strings.Trim(element, command )
 		result_ind.type_token = command
+
+
+		fmt.Println("----------------------------------------------")
+		fmt.Println("Partial Result")
+		fmt.Println("----------------------------------------------")
+		fmt.Println(result_ind.clause_name)
+		fmt.Println(result_ind.type_token)
+		fmt.Println(endcommand)
+		
 		result_ind = tokenize_clause_elements(result_ind)
 		result = append(result, result_ind)
 		fmt.Println("----------------------------------------------")
@@ -182,7 +193,7 @@ func tokenize_clause_elements(result_ind select_clause) select_clause{
 			fmt.Println(current_token)
 			if digested_elements==""{
 				if result_inner.clause_name == "" { result_inner.clause_name = current_token }
-				if result_inner.type_token == ""{result_inner.type_token = "value"}
+				if result_inner.type_token == ""{result_inner.type_token = "field"}
 			}
 			result_ind.select_fields = append(result_ind.select_fields, result_inner)
 		}
