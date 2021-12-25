@@ -80,7 +80,7 @@ func get_select_fields(input_string string, command string, endcommand string) [
 				element = element[0:strings.Index(element, endcommand)]
 			}
 		}
-		if strings.Index(element, command) > -1 {
+		if strings.Index(element, command) > 0 {
 			element = element[strings.Index(element, command): len(element)]
 		}
 		var result_ind select_clause
@@ -230,7 +230,10 @@ func get_sub_expression(expression string, opening_char string, ending_char stri
 func check_query_type(expression string, object_query * select_clause){
 	if strings.Index(strings.ToLower(expression), "select") < 2 {//have to make a trim
 		//after getting the fields from the first parenthesis, get latest keyword before the opening of parenthesus
-		sub_expression := get_sub_expression(expression[strings.Index(expression, "("):len(expression)], "(", ")")
+		sub_expression := ""
+		if (strings.Index(expression, "(") > -1){
+			sub_expression = get_sub_expression(expression[strings.Index(expression, "("):len(expression)], "(", ")")
+		}
 		if object_query == nil {
 			object_query = new(select_clause)
 		}
