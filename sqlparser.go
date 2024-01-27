@@ -2,31 +2,28 @@ package main
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
 	"os"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
-
-type query_words struct {
-	Keyword string
-	Position int
-}
-
-type select_clause struct {
-	clause_name string
-	type_token string
-	select_fields []select_clause
-	table_list []select_clause
-	where_list []select_clause
-}
-
 func main() {
-	var converted_select select_clause
-	
+	//var converted_select select_clause
+
 	argsWithProg := os.Args
 	//Example SQL
-	str1 := "select  campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1 "
+	//str1 := `select  sum(campo1), campo2, (select field, ffiend from (select test1, test2, test3 from internaltab1)) from (SELECT * FROM TAB3)
+	//where t1 = 1
+	//`
+	// str1 := `select  sum(campo1), campo2 from table1, table2 where t1 = 'TEST STRING' `
+	// str1 := `insert into table1 (field1, field2) values (1, '2') `
+	str1 := `select  campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1.23 `
+
+	// str1 := `select  table1.campo1, table2.campo2 from table1, table2 where t1 = 'TEST STRING' and table1.productid = table2.productid `
+
+	// str1 := `select  table1.campo1, table1.campo2 from table1 where t1 in (select field_in from table2) `
 
 	if argsWithProg != nil {
 		if len(argsWithProg) > 1 && argsWithProg[1] != "" {
@@ -34,258 +31,485 @@ func main() {
 		}
 		//select campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1
 	}
-	
-	check_query_type(str1, &converted_select)
 
-	fmt.Println("----------------------------------------------")
-	fmt.Println("Resulting Object")
-	fmt.Println("----------------------------------------------")	
-	fmt.Println(converted_select)
-	fmt.Println("----------------------------------------------")
-	fmt.Println("Original Query")
-	fmt.Println("----------------------------------------------")
-	fmt.Println(str1)
+	var action ActionExec = InternalActionExec{}
+	SetAction(action)
+	// result := tokenize_command(str1)
+
+	Execute_parsing_process(str1)		
 }
 
-func get_select_object(input_string string, result * select_clause){
-	
-	var result_select_fields []select_clause
-	var result_select_from []select_clause
-	var result_select_where []select_clause
-
-
-	result_select_fields = get_select_fields(input_string, "select", "from")
-	result_select_from = get_select_fields(input_string, "from", "where")
-	result_select_where = get_select_fields(input_string, "where", "")
-
-	result.select_fields = append(result.select_fields, result_select_fields...)
-	result.table_list = append(result.table_list, result_select_from...)
-	result.where_list = append(result.where_list, result_select_where...)
-}
-
-
-func get_select_fields(input_string string, command string, endcommand string) []select_clause{
-	var result []select_clause
-
-	if strings.Index(input_string, command) < 0 { return nil }
-	re := regexp.MustCompile(command + `[.*]` + endcommand)
-	fmt.Printf("Pattern: %v\n", re.String()) // print pattern
-
-	submatchall := re.Split(input_string, -1)
-	for _, element := range submatchall {
-
-
-		if endcommand != "" {
-			if strings.Index(element, endcommand) > 0 {
-				element = element[0:strings.Index(element, endcommand)]
-			}
-		}
-		if strings.Index(element, command) > 0 {
-			element = element[strings.Index(element, command): len(element)]
-		}
-		var result_ind select_clause
-		result_ind.clause_name = strings.Trim(element, command )
-		result_ind.type_token = command
-
-
-		fmt.Println("----------------------------------------------")
-		fmt.Println("Partial Result")
-		fmt.Println("----------------------------------------------")
-		fmt.Println(result_ind.clause_name)
-		fmt.Println(result_ind.type_token)
-		fmt.Println(endcommand)
-		
-		result_ind = tokenize_clause_elements(result_ind)
-		result = append(result, result_ind)
-		fmt.Println("----------------------------------------------")
-		fmt.Println("Element of query")
-		fmt.Println("----------------------------------------------")
-		fmt.Println(element)
+func returnType(nameType string) reflect.Type{
+	if nameType == "string"{
+		var str string
+		return reflect.TypeOf(str)
 	}
 
-	return result
+	if nameType == "number"{
+		var str float64 
+		// str = strconv.ParseFloat(str, 64)
+		return reflect.TypeOf(str)
+	}
+
+	if nameType == "int"{
+		var str int 
+		// str = strconv.ParseFloat(str, 64)
+		return reflect.TypeOf(str)
+	}
+	
+	return nil
 }
 
-func tokenize_clause_elements(result_ind select_clause) select_clause{
-	var digested_elements string
-	digested_elements = result_ind.clause_name
-	var current_token string
-	current_token = ""
 
-	for digested_elements != ""{
-		var result_inner select_clause
-		isdefault := false
 
-		switch digested_elements[0] {
-			case ' ':
-				//fmt.Println("Today.")
-			case '"':
-				//create a new sub object and add to it
-				 
-				sub_expression := get_sub_expression(digested_elements[strings.Index(digested_elements, "\""):len(digested_elements)], "\"", "\"")
-				fmt.Println("---------------------------")
-				fmt.Println("String:")
-				fmt.Println("---------------------------")
-				fmt.Println(sub_expression)
-				result_inner.clause_name = sub_expression
-				result_inner.type_token = "value"
-				break
-			case "'"[0]:
-				//create a new sub object and add to it
-				sub_expression := get_sub_expression(digested_elements[strings.Index(digested_elements, "'"):len(digested_elements)], "'", "'")
-				fmt.Println("---------------------------")
-				fmt.Println("String:")
-				fmt.Println("---------------------------")
-				fmt.Println(sub_expression)
-				result_inner.clause_name = sub_expression
-				result_inner.type_token = "value"
-				break
-			case "="[0]:
-				fmt.Println("---------------------------")
-				fmt.Println("Equal sign:")
-				fmt.Println("---------------------------")
-				result_inner.clause_name = current_token
-				result_inner.type_token = "field"
-				current_token = ""
-				result_ind.select_fields = append(result_ind.select_fields, result_inner)
-				result_inner.clause_name = string(digested_elements[0])
-				result_inner.type_token = "operator"
-				break
-			case ">"[0]:
-				result_inner.clause_name = current_token
-				result_inner.type_token = "field"
-				current_token = ""
-				result_ind.select_fields = append(result_ind.select_fields, result_inner)
-				result_inner.clause_name = string(digested_elements[0])
-				result_inner.type_token = "operator"
+func isEqualsTo(value1 interface{}, value2 interface{}) bool{
+	if (value1 == value2) {
+		return true
+	}
+	return false
+}
 
-				break
-			case "<"[0]:
-				result_inner.clause_name = current_token
-				result_inner.type_token = "field"
-				current_token = ""
-				result_ind.select_fields = append(result_ind.select_fields, result_inner)
-				result_inner.clause_name = string(digested_elements[0])
-				result_inner.type_token = "operator"
-				break
-			case ","[0]:
-				//create a new sub object and add to it
-				fmt.Println("---------------------------")
-				fmt.Println("Comma:")
-				fmt.Println("---------------------------")
-				fmt.Println(current_token)
-				result_inner.clause_name = current_token
-				result_inner.type_token = "field"
-				current_token = ""
-				break
-			default:
-				current_token += string(digested_elements[0])
-				isdefault = true
-				break
-		}
-		if len(digested_elements) > 0{
-			digested_elements = digested_elements[1:len(digested_elements)]
-		}
-		if isdefault == false || digested_elements == ""{
-			fmt.Println("---------------------------")
-			fmt.Println("Node:")
-			fmt.Println("---------------------------")
-			fmt.Println(current_token)
-			if digested_elements==""{
-				if result_inner.clause_name == "" { result_inner.clause_name = current_token }
-				if result_inner.type_token == ""{result_inner.type_token = "field"}
-			}
-			result_ind.select_fields = append(result_ind.select_fields, result_inner)
+
+func isBiggerThan(value1 float64, value2 float64) bool{
+	if (value1 > value2) {
+		return true
+	}
+	return false
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type expression_unit struct {
+	Index      int
+	Expression string
+}
+
+type ExpressionPart struct {
+	BeginIdentifier string
+	EndIdentifier   string
+}
+type ExpressionTemplate struct {
+	ExpressionType string
+	Parts          []ExpressionPart
+}
+
+type CommandTree struct {
+	ClauseName   string
+	TypeToken    string
+	Clause       string
+	FullCommand  string
+	CommandParts []CommandTree
+}
+
+
+type LogicGates struct {
+	CommandLeft  interface{}
+	Gate    	 string
+	CommandRight interface{}
+	ChildGates 	 []LogicGates
+}
+
+
+type ActionExec interface {
+	ExecAction(tree CommandTree)
+	ExecActionFinal(tree CommandTree)
+}
+
+type InternalActionExec struct {
+	ActionExec
+}
+
+var _command_syntax_tree CommandTree
+var _expressions []expression_unit
+var _action ActionExec
+
+func isInteger(val float64) bool {
+    return val == float64(int(val))
+}
+
+func SetAction(action ActionExec) {
+	_action = action
+}
+
+func (internalExec InternalActionExec) ExecAction(tree CommandTree) {
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Println("CorrespondingAction")
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Println(tree)
+}
+
+func (internalExec InternalActionExec) ExecActionFinal(tree CommandTree) {
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Println("CorrespondingFinalAction")
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Println(tree)
+}
+
+func IndexStringSlice(slice []string, value string) int {
+	for p, v := range slice {
+		if v == value {
+			return p
 		}
 	}
-	return result_ind
+	return -1
 }
 
-// func get_first_ocurrence(clause_to_analize){
-// 	strings.Index()
-
-// }
-
-func get_sub_expression(expression string, opening_char string, ending_char string) string{
+func control_hierarchy(expression string, opening_char string, ending_char string) string {
 	result_expression := ""
 	counter_hierarchy := 0 //send the expression with openingchar, please
-	counter := 0
+	overall_counter := 0
 
 	for _, element := range expression {
-		if string(element) == opening_char{
-			counter_hierarchy ++
-		}else if string(element) == ending_char {
-			counter_hierarchy --
-			if counter_hierarchy == 0 {
-				result_expression = expression[0:counter]
-				break
-			} 
+		if string(element) == opening_char {
+			counter_hierarchy++
+		} else {
+			if string(element) == ending_char {
+				counter_hierarchy--
+				if counter_hierarchy == 0 {
+					result_expression = expression[strings.Index(expression, opening_char)+1 : overall_counter]
+					break
+				}
+			}
 		}
-		counter++
-	}	
+		overall_counter++
+	}
 
 	return result_expression
 }
 
-func check_query_type(expression string, object_query * select_clause){
-	if strings.Index(strings.ToLower(expression), "select") < 2 {//have to make a trim
-		//after getting the fields from the first parenthesis, get latest keyword before the opening of parenthesus
-		sub_expression := ""
-		if (strings.Index(expression, "(") > -1){
-			sub_expression = get_sub_expression(expression[strings.Index(expression, "("):len(expression)], "(", ")")
-		}
-		if object_query == nil {
-			object_query = new(select_clause)
-		}
-		
-		if sub_expression != "" {
-			latest_keyword_ocurrence_string := expression[0:strings.Index(expression, "(")]
-			latest_keyword_list := find_location_expression(latest_keyword_ocurrence_string)
-			fmt.Println(latest_keyword_list)		
-			expression = strings.Replace(expression, sub_expression, "", 1)
-			get_select_object(expression, object_query)
-			fmt.Println(object_query)
-			if len(latest_keyword_list) > 0{
-				if latest_keyword_list[0].Keyword == "SELECT"{
-					check_query_type(sub_expression, &object_query.select_fields[len(object_query.select_fields) - 1])
-				}else if latest_keyword_list[0].Keyword == "FROM"{
-					check_query_type(sub_expression, &object_query.table_list[len(object_query.table_list)  - 1])
-				}else if latest_keyword_list[0].Keyword == "WHERE"{
-					check_query_type(sub_expression, &object_query.where_list[len(object_query.where_list)  - 1])
-				}
+func control_string(expression string, opening_char string, ending_char string) string {
+	result_expression := ""
+	counter_hierarchy := 0 //send the expression with openingchar, please
+	overall_counter := 0
+
+	for _, element := range expression {
+		if string(element) == opening_char && counter_hierarchy == 0 {
+			counter_hierarchy++
+		} else {
+			if string(element) == ending_char {
+				result_expression = expression[strings.Index(expression, opening_char)+1 : overall_counter]
+				break
 			}
-		}else{
-			get_select_object(expression, object_query)
-			//return item
 		}
+
+		overall_counter++
+	}
+
+	return result_expression
+}
+
+func control_hierarchy_tokenized(expression []string, opening_char string, ending_char string) []string {
+	var result_expression []string
+	counter_hierarchy := 0 //send the expression with openingchar, please
+	overall_counter := 0
+
+	for _, element := range expression {
+		if string(element) == opening_char {
+			counter_hierarchy++
+		} else if string(element) == ending_char {
+			counter_hierarchy--
+			if counter_hierarchy == 0 {
+				result_expression = expression[IndexStringSlice(expression, opening_char)+1 : overall_counter]
+				break
+			}
+		}
+		overall_counter++
+	}
+	if len(result_expression) < 1 {
+		result_expression = expression[IndexStringSlice(expression, opening_char)+1:]
+	}
+
+	return result_expression
+}
+
+var count int = 0
+
+func get_all_sub_expressions(current_index int) {
+	for strings.Index(_expressions[current_index].Expression, "'") > -1 && count < 15 {
+		sub_expresion := control_string(_expressions[current_index].Expression, "'", "'")
+		unit := expression_unit{Index: len(_expressions), Expression: "'" + sub_expresion + "'"}
+		strindex := " {" + strconv.Itoa(len(_expressions)) + "} "
+		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "'"+sub_expresion+"'", strindex, 1)
+		_expressions = append(_expressions, unit)
+		count++
+	}
+
+	for strings.Index(_expressions[current_index].Expression, "(") > -1 {
+		sub_expresion := control_hierarchy(_expressions[current_index].Expression, "(", ")")
+		unit := expression_unit{Index: len(_expressions), Expression: sub_expresion}
+		strindex := " {" + strconv.Itoa(len(_expressions)) + "} "
+		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "("+sub_expresion+")", strindex, 1)
+		_expressions = append(_expressions, unit)
+		get_all_sub_expressions(unit.Index)
 	}
 }
 
+func Execute_parsing_process(command string) {
+	_command_syntax_tree.CommandParts = nil
+	_expressions = nil
+	command = strings.ToLower(command)
+	unit := expression_unit{Index: 0, Expression: command}
+	_expressions = append(_expressions, unit)
+	get_all_sub_expressions(0)
+	start_syntax_tree(command)
+	_action.ExecActionFinal(_command_syntax_tree)
+}
 
-func find_location_expression(expression string)[]query_words {
-	keyword_list := []query_words{
-		{"SELECT", 0},
-		{"FROM", 0},
-		{"WHERE", 0},
+func tokenize_command(command string) []string {
+	re := regexp.MustCompile(`\S+`)
+	submatchall := re.FindAllString(command, -1)
+	return submatchall
+}
+
+func start_syntax_tree(command string) {
+	_command_syntax_tree = CommandTree{ClauseName: "master",
+		TypeToken:   "master",
+		FullCommand: command}
+	first_exmpression := strings.Trim(_expressions[0].Expression, " ")
+	switch strings.ToLower(strings.Trim(first_exmpression[0:strings.Index(first_exmpression, " ")], " ")) {
+	case "select":
+		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "SELECT_COMMAND",
+			TypeToken: "SELECT"})
+		parse_select_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1])
+
+		fmt.Println("End Syntax Tree-------------------------------")
+		fmt.Println(_command_syntax_tree)
+		fmt.Println("------------------------------------------------")
+		break
+
+	case "insert":
+		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "INSERT_COMMAND",
+			TypeToken: "INSERT"})
+		parse_insert_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1])
+
+		fmt.Println("End Syntax Tree-------------------------------")
+		fmt.Println(_command_syntax_tree)
+		fmt.Println("------------------------------------------------")
+		break
+	default:
+		// fmt.Println("start_syntax_tree-------------------------------")
+		// fmt.Println(first_exmpression)
+		// fmt.Println("------------------------------------------------")
+		break
 	}
+}
+
+func parse_select_regions(expression string, tree *CommandTree) {
+	tokens := tokenize_command(expression)
+
+	if IndexStringSlice(tokens, "select") > -1 {
+		tokenized_fields := control_hierarchy_tokenized(tokens, "select", "from")
+		tree_part := CommandTree{ClauseName: "select", TypeToken: "FIELDS_SELECT", FullCommand: expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1])
+	}
+	if IndexStringSlice(tokens, "from") > -1 {
+		tokenized_tables := control_hierarchy_tokenized(tokens, "from", "where")
+		tree_part := CommandTree{ClauseName: "from", TypeToken: "tables_from"} //,FullCommand:expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1])
+	}
+	if IndexStringSlice(tokens, "where") > -1 {
+		tokenized_filters := control_hierarchy_tokenized(tokens, "where", "go;")
+		tree_part := CommandTree{ClauseName: "where", TypeToken: "where_fields"}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_filters, &tree.CommandParts[len(tree.CommandParts)-1])
+	}
+}
+
+func parse_insert_regions(expression string, tree *CommandTree) {
+	tokens := tokenize_command(expression)
+
+	if IndexStringSlice(tokens, "insert") > -1 {
+		tokenized_fields := control_hierarchy_tokenized(tokens, "insert", "values")
+		tree_part := CommandTree{ClauseName: "insert", TypeToken: "ADDRESSING_INSERT", FullCommand: expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1])
+	}
+	if IndexStringSlice(tokens, "values") > -1 {
+		tokenized_tables := control_hierarchy_tokenized(tokens, "values", ")")
+		tree_part := CommandTree{ClauseName: "values", TypeToken: "VALUES_INSERT"} 
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1])
+	}
+}
+
+func get_tokens_as_tree(tokenized_command []string, tree *CommandTree) []CommandTree {
+	//var tree_curren []CommandTree
+	for index_token, token := range tokenized_command {
+		tree_part := get_command(token, tree, tokenized_command, index_token)
+		tree.CommandParts = append(tree.CommandParts, tree_part)
+	}
+	return tree.CommandParts
+}
+
+func check_expression_containing_token(index_token int) string {
+    index_expressions := index_token
+	result_type := ""
+
+	for index_expressions > 0 {
+		
+		if (strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "select") == 0) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "from") == 0) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "where") == 0 ) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "insert") == 0 ) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "into") == 0 ) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "update") == 0 ) || 
+		(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "set") == 0) {
+
+			result_type = strings.Trim(_expressions[index_expressions].Expression[0:strings.Index(strings.TrimLeft(_expressions[index_expressions].Expression, " "), " ")], " ")
+			break
+		} 
+		index_expressions --
+	}
+	return result_type
+}
+
+func get_command(command string, tree *CommandTree, tokenized_command []string, index_tokenized_command int) CommandTree {
+	//var tree CommandTree
+	token := strings.Replace(command, ",", "", 1) //replace all maybe
+	index_token := check_index(token)
 	
-	var result []query_words
-	countInt := 0
-	for _, element := range keyword_list {
-		currentIndex := strings.Index(strings.ToUpper(expression), element.Keyword)
-		element.Position = currentIndex
-		if countInt > 0 && element.Position > -1 && currentIndex < result[countInt-1].Position{
-			result = append(result, result[countInt-1])
-			result[countInt-1] = element
-		}else{
-			result = append(result, element)
-		}
-		countInt ++
+	if index_token > -1 {
 
+		if strings.Index(_expressions[index_token].Expression, "'") > -1 {
+			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "STRING", Clause: _expressions[index_token].Expression}
+		} else if (index_tokenized_command > 1 && strings.Index(tokenized_command[index_tokenized_command - 2], "into") > -1) {
+			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "COLUMNS", Clause: _expressions[index_token].Expression}
+			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
+		} else if (strings.Index(strings.ToLower(_expressions[index_token].Expression), "select") == 0){
+			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
+			parse_select_regions(_expressions[index_token].Expression, tree)
+		}else{
+			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
+			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
+		}
+	} else if fNumber, err := strconv.ParseFloat(token, 64); err == nil {
+		if isInteger(fNumber) {
+			tree = &CommandTree{ClauseName: token, TypeToken: "INT", Clause: token}
+		} else {
+		tree = &CommandTree{ClauseName: token, TypeToken: "FLOAT64", Clause: token}
+		}
+	} else {
+		switch token {
+		case "select":
+			tree = &CommandTree{ClauseName: "SELECT", TypeToken: "SELECT_COMMAND", Clause: token}
+			break
+		case "into":
+			tree = &CommandTree{ClauseName: "INTO", TypeToken: "INTO_COMMAND", Clause: token}
+			break
+		case "in":
+			tree = &CommandTree{ClauseName: "IN", TypeToken: "OPERATOR", Clause: token}
+			break
+		case "on":
+			tree = &CommandTree{ClauseName: "ON", TypeToken: "ON_COMMAND", Clause: token}
+			break
+		case "inner":
+			tree = &CommandTree{ClauseName: "INNER", TypeToken: "JOIN_TYPE", Clause: token}
+			break
+		case "left":
+			tree = &CommandTree{ClauseName: "LEFT", TypeToken: "JOIN_TYPE", Clause: token}
+
+			break
+		case "right":
+			tree = &CommandTree{ClauseName: "RIGHT", TypeToken: "JOIN_TYPE", Clause: token}
+
+			break
+		case "outer":
+			tree = &CommandTree{ClauseName: "OUTER", TypeToken: "JOIN_TYPE", Clause: token}
+
+			break
+		case "join":
+			tree = &CommandTree{ClauseName: "JOIN", TypeToken: "JOIN", Clause: token}
+
+			break
+		case "sum":
+			tree = &CommandTree{ClauseName: "SUM", TypeToken: "RESERVED_FUNCTION", Clause: token}
+
+			break
+		case "group":
+			tree = &CommandTree{ClauseName: "GROUP", TypeToken: "RESERVED_FUNCTION", Clause: token}
+
+			break
+		case "max":
+			tree = &CommandTree{ClauseName: "MAX", TypeToken: "RESERVED_FUNCTION", Clause: token}
+
+			break
+		case "distinct":
+			tree = &CommandTree{ClauseName: "DISTINCT", TypeToken: "RESERVED_FUNCTION", Clause: token}
+
+			break
+		case "=":
+			tree = &CommandTree{ClauseName: "EQUALS", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case "*=":
+			tree = &CommandTree{ClauseName: "LEFT_JOIN", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case "=*":
+			tree = &CommandTree{ClauseName: "RIGHT_JOIN", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case ">":
+			tree = &CommandTree{ClauseName: "BIGGER_THAN", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case "<":
+			tree = &CommandTree{ClauseName: "SMALLER_THAN", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case "and":
+			tree = &CommandTree{ClauseName: "AND", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		case "or":
+			tree = &CommandTree{ClauseName: "OR", TypeToken: "OPERATOR", Clause: token}
+
+			break
+		default:
+			if tree.ClauseName == "select" {
+				tree = &CommandTree{ClauseName: "SELECT", TypeToken: "FIELD_SELECT_TO_SHOW", Clause: token}
+	
+			} else
+			if tree.ClauseName == "from" {
+				tree = &CommandTree{ClauseName: "FROM", TypeToken: "TABLE_FROM_COMMAND", Clause: token}
+	
+			} else
+			if tree.ClauseName == "where" {
+				tree = &CommandTree{ClauseName: "WHERE", TypeToken: "FIELD_FILTER", Clause: token}
+	
+			} else
+			if tree.ClauseName == "into" {
+				tree = &CommandTree{ClauseName: "INTO", TypeToken: "TABLE_INTO_COMMAND", Clause: token}
+	
+			} else
+			if tree.ClauseName == "values" {
+				tree = &CommandTree{ClauseName: "VALUES", TypeToken: "COLUMN_VALUES_COMMAND", Clause: token}
+	
+			}else if (index_tokenized_command > 0 && strings.Index(tokenized_command[index_tokenized_command - 1], "into") > -1){
+				tree = &CommandTree{ClauseName: "TABLE", TypeToken: "TABLE", Clause: token}
+			} else {
+				tree = &CommandTree{ClauseName: "FIELD", TypeToken: "FIELD", Clause: token}
+			}
+			break
+		}
 	}
-	fmt.Println("----------------------------------------------")
-	fmt.Println("find_location_expression")
-	fmt.Println("----------------------------------------------")
-	fmt.Println(result)
+
+	_action.ExecAction(*tree)
+	return *tree
+}
+
+func check_index(command string) int {
+	re := regexp.MustCompile(`{\d+}`)
+	submatchall := re.FindAllString(command, -1)
+	result := -1
+	if len(submatchall) > 0 {
+		number_string := strings.Replace(strings.Replace(submatchall[0], "{", "", 1), "}", "", 1)
+		result, _ = strconv.Atoi(number_string)
+	}
 	return result
 }
