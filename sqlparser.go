@@ -21,7 +21,7 @@ func main() {
 	// str1 := `insert into table1 (field1, field2) values (1, '2') `
 	// str1 := `select  campo1 as crap1, campo2, (select field, ffiend from tab2) as crap2 from tabela1 as tab where t1 = 1.23 `
 	// str1 := `select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3`
-	str1 := `select client_number, name_client from table1 where client_number > 1`
+	str1 := `select table1.client_number, name_client from table1 where table1.client_number > 1`
 // "select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3
 	// str1 := `select  table1.campo1, table2.campo2 from table1, table2 where t1 = 'TEST STRING' and table1.productid = table2.productid `
 
@@ -103,6 +103,7 @@ type CommandTree struct {
 	TypeToken    string
 	Clause       string
 	Alias		 string
+	Prefix		 string
 	FullCommand  string
 	CommandParts []CommandTree
 }
@@ -491,6 +492,7 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 		default:
 			if tree.ClauseName == "select" {
 				tree = &CommandTree{ClauseName: "SELECT", TypeToken: "FIELD_SELECT_TO_SHOW", Clause: token}
+				CheckForPrefixes(tree)
 	
 			} else
 			if tree.ClauseName == "from" {
@@ -499,6 +501,7 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			} else
 			if tree.ClauseName == "where" {
 				tree = &CommandTree{ClauseName: "WHERE", TypeToken: "FIELD_FILTER", Clause: token}
+				CheckForPrefixes(tree)
 	
 			} else
 			if tree.ClauseName == "into" {
@@ -525,6 +528,14 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 
 	_action.ExecAction(tree)
 	return *tree
+}
+
+func CheckForPrefixes(tree *CommandTree ){
+	dot := strings.Index((*tree).Clause, ".")
+	if dot > -1{
+		(*tree).Prefix = (*tree).Clause[:dot]
+		(*tree).Clause = (*tree).Clause[dot+1:]
+	}
 }
 
 func check_index(command string) int {
