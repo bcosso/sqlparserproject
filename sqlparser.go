@@ -19,8 +19,10 @@ func main() {
 	//`
 	// str1 := `select  sum(campo1), campo2 from table1, table2 where t1 = 'TEST STRING' `
 	// str1 := `insert into table1 (field1, field2) values (1, '2') `
-	str1 := `select  campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1.23 `
-
+	// str1 := `select  campo1 as crap1, campo2, (select field, ffiend from tab2) as crap2 from tabela1 as tab where t1 = 1.23 `
+	// str1 := `select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3`
+	str1 := `select client_number, name_client from table1 where client_number > 1`
+// "select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3
 	// str1 := `select  table1.campo1, table2.campo2 from table1, table2 where t1 = 'TEST STRING' and table1.productid = table2.productid `
 
 	// str1 := `select  table1.campo1, table1.campo2 from table1 where t1 in (select field_in from table2) `
@@ -100,6 +102,7 @@ type CommandTree struct {
 	ClauseName   string
 	TypeToken    string
 	Clause       string
+	Alias		 string
 	FullCommand  string
 	CommandParts []CommandTree
 }
@@ -114,7 +117,7 @@ type LogicGates struct {
 
 
 type ActionExec interface {
-	ExecAction(tree CommandTree)
+	ExecAction(tree * CommandTree)
 	ExecActionFinal(tree CommandTree)
 }
 
@@ -134,7 +137,7 @@ func SetAction(action ActionExec) {
 	_action = action
 }
 
-func (internalExec InternalActionExec) ExecAction(tree CommandTree) {
+func (internalExec InternalActionExec) ExecAction(tree * CommandTree) {
 	fmt.Println("-----------------------------------------------------------")
 	fmt.Println("CorrespondingAction")
 	fmt.Println("-----------------------------------------------------------")
@@ -247,7 +250,7 @@ func get_all_sub_expressions(current_index int) {
 	}
 }
 
-func Execute_parsing_process(command string) {
+func Execute_parsing_process(command string) CommandTree {
 	_command_syntax_tree.CommandParts = nil
 	_expressions = nil
 	command = strings.ToLower(command)
@@ -256,6 +259,8 @@ func Execute_parsing_process(command string) {
 	get_all_sub_expressions(0)
 	start_syntax_tree(command)
 	_action.ExecActionFinal(_command_syntax_tree)
+	
+	return _command_syntax_tree
 }
 
 func tokenize_command(command string) []string {
@@ -339,9 +344,12 @@ func parse_insert_regions(expression string, tree *CommandTree) {
 
 func get_tokens_as_tree(tokenized_command []string, tree *CommandTree) []CommandTree {
 	//var tree_curren []CommandTree
-	for index_token, token := range tokenized_command {
-		tree_part := get_command(token, tree, tokenized_command, index_token)
+	index_token := 0 
+
+	for index_token < len(tokenized_command) {
+		tree_part := get_command(tokenized_command[index_token], tree, tokenized_command, &index_token)
 		tree.CommandParts = append(tree.CommandParts, tree_part)
+		index_token ++
 	}
 	return tree.CommandParts
 }
@@ -368,7 +376,7 @@ func check_expression_containing_token(index_token int) string {
 	return result_type
 }
 
-func get_command(command string, tree *CommandTree, tokenized_command []string, index_tokenized_command int) CommandTree {
+func get_command(command string, tree *CommandTree, tokenized_command []string, index_tokenized_command * int) CommandTree {
 	//var tree CommandTree
 	token := strings.Replace(command, ",", "", 1) //replace all maybe
 	index_token := check_index(token)
@@ -377,12 +385,13 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 
 		if strings.Index(_expressions[index_token].Expression, "'") > -1 {
 			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "STRING", Clause: _expressions[index_token].Expression}
-		} else if (index_tokenized_command > 1 && strings.Index(tokenized_command[index_tokenized_command - 2], "into") > -1) {
+		} else if (*index_tokenized_command > 1 && strings.Index(tokenized_command[*index_tokenized_command - 2], "into") > -1) {
 			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "COLUMNS", Clause: _expressions[index_token].Expression}
 			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
 		} else if (strings.Index(strings.ToLower(_expressions[index_token].Expression), "select") == 0){
 			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
 			parse_select_regions(_expressions[index_token].Expression, tree)
+
 		}else{
 			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
 			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
@@ -470,6 +479,15 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			tree = &CommandTree{ClauseName: "OR", TypeToken: "OPERATOR", Clause: token}
 
 			break
+		case "as":
+			if len(tokenized_command) > (*index_tokenized_command) + 1{
+				
+					treeChild := &((*tree).CommandParts[len(tree.CommandParts) -1])
+					(*treeChild).Alias = tokenized_command[(*index_tokenized_command) + 1]
+					*index_tokenized_command += 1
+			}
+			break
+
 		default:
 			if tree.ClauseName == "select" {
 				tree = &CommandTree{ClauseName: "SELECT", TypeToken: "FIELD_SELECT_TO_SHOW", Clause: token}
@@ -490,16 +508,22 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			if tree.ClauseName == "values" {
 				tree = &CommandTree{ClauseName: "VALUES", TypeToken: "COLUMN_VALUES_COMMAND", Clause: token}
 	
-			}else if (index_tokenized_command > 0 && strings.Index(tokenized_command[index_tokenized_command - 1], "into") > -1){
+			}else if (*index_tokenized_command > 0 && strings.Index(tokenized_command[*index_tokenized_command - 1], "into") > -1){
 				tree = &CommandTree{ClauseName: "TABLE", TypeToken: "TABLE", Clause: token}
 			} else {
 				tree = &CommandTree{ClauseName: "FIELD", TypeToken: "FIELD", Clause: token}
 			}
 			break
+		}		
+	}
+	if len(tokenized_command) > (*index_tokenized_command) + 2{
+		if tokenized_command[(*index_tokenized_command) + 1] == "as" {
+			(*tree).Alias = tokenized_command[(*index_tokenized_command) + 2]
+			*index_tokenized_command += 2
 		}
 	}
 
-	_action.ExecAction(*tree)
+	_action.ExecAction(tree)
 	return *tree
 }
 
