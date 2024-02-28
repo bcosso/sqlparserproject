@@ -1,85 +1,11 @@
-package main
+package sql_parser
 
 import (
 	"fmt"
-	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 )
-
-func main() {
-	//var converted_select select_clause
-
-	argsWithProg := os.Args
-	//Example SQL
-	//str1 := `select  sum(campo1), campo2, (select field, ffiend from (select test1, test2, test3 from internaltab1)) from (SELECT * FROM TAB3)
-	//where t1 = 1
-	//`
-	// str1 := `select  sum(campo1), campo2 from table1, table2 where t1 = 'TEST STRING' `
-	// str1 := `insert into table1 (field1, field2) values (1, '2') `
-	// str1 := `select  campo1 as crap1, campo2, (select field, ffiend from tab2) as crap2 from tabela1 as tab where t1 = 1.23 `
-	// str1 := `select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3`
-	str1 := `select table1.client_number, name_client from table1 where table1.client_number > 1`
-// "select name_client, client_number from (select client_number, name_client from table1 where 1 = 1) as tab where client_number = 3
-	// str1 := `select  table1.campo1, table2.campo2 from table1, table2 where t1 = 'TEST STRING' and table1.productid = table2.productid `
-
-	// str1 := `select  table1.campo1, table1.campo2 from table1 where t1 in (select field_in from table2) `
-
-	if argsWithProg != nil {
-		if len(argsWithProg) > 1 && argsWithProg[1] != "" {
-			str1 = argsWithProg[1]
-		}
-		//select campo1, campo2, (select field, ffiend from tab2) from tabela1 where t1 = 1
-	}
-
-	var action ActionExec = InternalActionExec{}
-	SetAction(action)
-	// result := tokenize_command(str1)
-
-	Execute_parsing_process(str1)		
-}
-
-func returnType(nameType string) reflect.Type{
-	if nameType == "string"{
-		var str string
-		return reflect.TypeOf(str)
-	}
-
-	if nameType == "number"{
-		var str float64 
-		// str = strconv.ParseFloat(str, 64)
-		return reflect.TypeOf(str)
-	}
-
-	if nameType == "int"{
-		var str int 
-		// str = strconv.ParseFloat(str, 64)
-		return reflect.TypeOf(str)
-	}
-	
-	return nil
-}
-
-
-
-func isEqualsTo(value1 interface{}, value2 interface{}) bool{
-	if (value1 == value2) {
-		return true
-	}
-	return false
-}
-
-
-func isBiggerThan(value1 float64, value2 float64) bool{
-	if (value1 > value2) {
-		return true
-	}
-	return false
-}
-
-
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -521,7 +447,7 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 	}
 	if len(tokenized_command) > (*index_tokenized_command) + 2{
 		if tokenized_command[(*index_tokenized_command) + 1] == "as" {
-			(*tree).Alias = tokenized_command[(*index_tokenized_command) + 2]
+			(*tree).Alias = strings.Replace(tokenized_command[(*index_tokenized_command) + 2], ",", "", -1)
 			*index_tokenized_command += 2
 		}
 	}
