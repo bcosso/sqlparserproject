@@ -52,8 +52,7 @@ type InternalActionExec struct {
 	ActionExec
 }
 
-var _command_syntax_tree CommandTree
-var _expressions []expression_unit
+
 var _action ActionExec
 
 func isInteger(val float64) bool {
@@ -155,9 +154,13 @@ func control_hierarchy_tokenized(expression []string, opening_char string, endin
 	return result_expression
 }
 
-var count int = 0
 
-func get_all_sub_expressions(current_index int) {
+
+func get_all_sub_expressions(current_index int, ctx * map[string] interface{}) {
+
+	_expressions := (*ctx)["_expressions"].([]expression_unit)
+	count := (*ctx)["count"].(int)
+	
 	for strings.Index(_expressions[current_index].Expression, "'") > -1 && count < 15 {
 		sub_expresion := control_string(_expressions[current_index].Expression, "'", "'")
 		unit := expression_unit{Index: len(_expressions), Expression: "'" + sub_expresion + "'"}
@@ -173,21 +176,30 @@ func get_all_sub_expressions(current_index int) {
 		strindex := " {" + strconv.Itoa(len(_expressions)) + "} "
 		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "("+sub_expresion+")", strindex, 1)
 		_expressions = append(_expressions, unit)
-		get_all_sub_expressions(unit.Index)
+		get_all_sub_expressions(unit.Index, ctx)
 	}
 }
 
 func Execute_parsing_process(command string) CommandTree {
-	_command_syntax_tree.CommandParts = nil
-	_expressions = nil
+
+	var _command_syntax_tree CommandTree
+	var _expressions []expression_unit
+	var count int = 0
+	
+	ctx := make(map[string] interface{})
+
+
 	command = strings.ToLower(command)
 	unit := expression_unit{Index: 0, Expression: command}
 	_expressions = append(_expressions, unit)
-	get_all_sub_expressions(0)
-	start_syntax_tree(command)
-	_action.ExecActionFinal(_command_syntax_tree)
+	ctx["_command_syntax_tree"] = &_command_syntax_tree
+	ctx["_expressions"] = _expressions
+	ctx["count"] = count
+	get_all_sub_expressions(0, &ctx)
+	start_syntax_tree(command, &ctx)
+	_action.ExecActionFinal(*(ctx["_command_syntax_tree"].(*CommandTree)))
 	
-	return _command_syntax_tree
+	return *(ctx["_command_syntax_tree"].(*CommandTree))
 }
 
 func tokenize_command(command string) []string {
@@ -196,8 +208,10 @@ func tokenize_command(command string) []string {
 	return submatchall
 }
 
-func start_syntax_tree(command string) {
-	_command_syntax_tree = CommandTree{ClauseName: "master",
+func start_syntax_tree(command string, ctx * map[string] interface{}) {
+	_command_syntax_tree := ((*ctx)["_command_syntax_tree"].(*CommandTree))
+	_expressions := (*ctx)["_expressions"].([]expression_unit)
+	_command_syntax_tree = &CommandTree{ClauseName: "master",
 		TypeToken:   "master",
 		FullCommand: command}
 	first_exmpression := strings.Trim(_expressions[0].Expression, " ")
@@ -205,7 +219,7 @@ func start_syntax_tree(command string) {
 	case "select":
 		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "SELECT_COMMAND",
 			TypeToken: "SELECT"})
-		parse_select_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1])
+		parse_select_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1], ctx)
 
 		fmt.Println("End Syntax Tree-------------------------------")
 		fmt.Println(_command_syntax_tree)
@@ -215,7 +229,7 @@ func start_syntax_tree(command string) {
 	case "insert":
 		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "INSERT_COMMAND",
 			TypeToken: "INSERT"})
-		parse_insert_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1])
+		parse_insert_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1], ctx)
 
 		fmt.Println("End Syntax Tree-------------------------------")
 		fmt.Println(_command_syntax_tree)
@@ -227,63 +241,65 @@ func start_syntax_tree(command string) {
 		// fmt.Println("------------------------------------------------")
 		break
 	}
+	(*ctx)["_command_syntax_tree"] = _command_syntax_tree
 }
 
-func parse_select_regions(expression string, tree *CommandTree) {
+func parse_select_regions(expression string, tree *CommandTree, ctx * map[string]interface{}) {
 	tokens := tokenize_command(expression)
 
 	if IndexStringSlice(tokens, "select") > -1 {
 		tokenized_fields := control_hierarchy_tokenized(tokens, "select", "from")
 		tree_part := CommandTree{ClauseName: "select", TypeToken: "FIELDS_SELECT", FullCommand: expression}
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
-		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1])
+		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 	if IndexStringSlice(tokens, "from") > -1 {
 		tokenized_tables := control_hierarchy_tokenized(tokens, "from", "where")
 		tree_part := CommandTree{ClauseName: "from", TypeToken: "tables_from"} //,FullCommand:expression}
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
-		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1])
+		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 	if IndexStringSlice(tokens, "where") > -1 {
 		tokenized_filters := control_hierarchy_tokenized(tokens, "where", "go;")
 		tree_part := CommandTree{ClauseName: "where", TypeToken: "where_fields"}
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
-		get_tokens_as_tree(tokenized_filters, &tree.CommandParts[len(tree.CommandParts)-1])
+		get_tokens_as_tree(tokenized_filters, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 }
 
-func parse_insert_regions(expression string, tree *CommandTree) {
+func parse_insert_regions(expression string, tree *CommandTree, ctx * map[string]interface{}) {
 	tokens := tokenize_command(expression)
 
 	if IndexStringSlice(tokens, "insert") > -1 {
 		tokenized_fields := control_hierarchy_tokenized(tokens, "insert", "values")
 		tree_part := CommandTree{ClauseName: "insert", TypeToken: "ADDRESSING_INSERT", FullCommand: expression}
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
-		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1])
+		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 	if IndexStringSlice(tokens, "values") > -1 {
 		tokenized_tables := control_hierarchy_tokenized(tokens, "values", ")")
 		tree_part := CommandTree{ClauseName: "values", TypeToken: "VALUES_INSERT"} 
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
-		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1])
+		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 }
 
-func get_tokens_as_tree(tokenized_command []string, tree *CommandTree) []CommandTree {
+func get_tokens_as_tree(tokenized_command []string, tree *CommandTree, ctx * map[string]interface{}) []CommandTree {
 	//var tree_curren []CommandTree
 	index_token := 0 
 
 	for index_token < len(tokenized_command) {
-		tree_part := get_command(tokenized_command[index_token], tree, tokenized_command, &index_token)
+		tree_part := get_command(tokenized_command[index_token], tree, tokenized_command, &index_token, ctx)
 		tree.CommandParts = append(tree.CommandParts, tree_part)
 		index_token ++
 	}
 	return tree.CommandParts
 }
 
-func check_expression_containing_token(index_token int) string {
+func check_expression_containing_token(index_token int, ctx * map[string]interface{}) string {
     index_expressions := index_token
 	result_type := ""
+	_expressions := (*ctx)["_expressions"].([]expression_unit)
 
 	for index_expressions > 0 {
 		
@@ -303,10 +319,11 @@ func check_expression_containing_token(index_token int) string {
 	return result_type
 }
 
-func get_command(command string, tree *CommandTree, tokenized_command []string, index_tokenized_command * int) CommandTree {
+func get_command(command string, tree *CommandTree, tokenized_command []string, index_tokenized_command * int, ctx * map[string]interface{}) CommandTree {
 	//var tree CommandTree
 	token := strings.Replace(command, ",", "", 1) //replace all maybe
 	index_token := check_index(token)
+	_expressions := (*ctx)["_expressions"].([]expression_unit)
 	
 	if index_token > -1 {
 
@@ -314,14 +331,14 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "STRING", Clause: _expressions[index_token].Expression}
 		} else if (*index_tokenized_command > 1 && strings.Index(tokenized_command[*index_tokenized_command - 2], "into") > -1) {
 			tree = &CommandTree{ClauseName: _expressions[index_token].Expression, TypeToken: "COLUMNS", Clause: _expressions[index_token].Expression}
-			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
+			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree, ctx)
 		} else if (strings.Index(strings.ToLower(_expressions[index_token].Expression), "select") == 0){
 			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
-			parse_select_regions(_expressions[index_token].Expression, tree)
+			parse_select_regions(_expressions[index_token].Expression, tree, ctx)
 
 		}else{
 			tree = &CommandTree{ClauseName: "FIELDS", TypeToken: "FIELDS", Clause: _expressions[index_token].Expression}
-			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree)
+			get_tokens_as_tree(tokenize_command(_expressions[index_token].Expression),tree, ctx)
 		}
 	} else if fNumber, err := strconv.ParseFloat(token, 64); err == nil {
 		if isInteger(fNumber) {
