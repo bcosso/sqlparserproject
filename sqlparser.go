@@ -157,19 +157,20 @@ func control_hierarchy_tokenized(expression []string, opening_char string, endin
 
 
 func control_hierarchy_inner_tokenized(expression string, opening_char string, ending_char string) string {
-	tokens := tokenize_command(expression)
+	// tokens := tokenize_command(expression)
+	tokens := strings.SplitAfter(expression, " ")
 	var result_expression []string
 	counter_hierarchy := 0 //send the expression with openingchar, please
 	overall_counter := 0
 
 	for _, element := range tokens {
-		if string(element) == opening_char {
+		if strings.Replace(strings.Replace(element, ",", "", -1), " ", "", -1) == opening_char {
 			counter_hierarchy++
 		} else {
-			if 	strings.Replace(element, ",", "", -1) == ending_char {
+			if 	strings.Replace(strings.Replace(element, ",", "", -1), " ", "", -1) == ending_char {
 				counter_hierarchy--
 				if counter_hierarchy == 0 {
-					result_expression = tokens[IndexStringSlice(tokens, opening_char)+1 : overall_counter]
+					result_expression = tokens[IndexStringSliceSpecial(tokens, opening_char)+1 : overall_counter]
 					break
 				}
 			}
@@ -177,7 +178,16 @@ func control_hierarchy_inner_tokenized(expression string, opening_char string, e
 		overall_counter++
 	}
 
-	return strings.Join(result_expression[:], " ")
+	return strings.Join(result_expression[:], "")
+}
+
+func IndexStringSliceSpecial(slice []string, value string) int {
+	for p, v := range slice {
+		if strings.Replace(strings.Replace(v, ",", "", -1), " ", "", -1) == value {
+			return p
+		}
+	}
+	return -1
 }
 
 
@@ -186,6 +196,8 @@ func get_all_sub_expressions(current_index int, ctx * map[string] interface{}) {
 	
 
 	_expressions := (*ctx)["_expressions"].([]expression_unit)
+	fmt.Println("------------_expressions-------------------")
+	fmt.Println(_expressions)
 	count := (*ctx)["count"].(int)
 	
 	for strings.Index(_expressions[current_index].Expression, "'") > -1 && count < 15 {
@@ -205,18 +217,35 @@ func get_all_sub_expressions(current_index int, ctx * map[string] interface{}) {
 		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "("+sub_expresion+")", strindex, 1)
 		_expressions = append(_expressions, unit)
 		(*ctx)["_expressions"] = _expressions
+		fmt.Println("------------_expressions-------------------")
+		fmt.Println(_expressions)
+		fmt.Println("------------ctx-------------------")
+		fmt.Println(*ctx)
 		get_all_sub_expressions(unit.Index, ctx)
 	}
 
-
 	for strings.Index(strings.ToLower(_expressions[current_index].Expression), " case ") > -1 {
 		sub_expresion := control_hierarchy_inner_tokenized(_expressions[current_index].Expression, "case", "end")
-		unit := expression_unit{Index: len(_expressions), Expression: "case "+sub_expresion+" end"}
+		fmt.Println("====================sub_expresion")
+		fmt.Println("-" + sub_expresion + "-")
+		fmt.Println(_expressions[current_index].Expression)
+
+		unit := expression_unit{Index: len(_expressions), Expression:"case " + sub_expresion+"end"}
 		strindex := " {" + strconv.Itoa(len(_expressions)) + "} "
-		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "case "+sub_expresion+" end", strindex, 1)
+		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "case " + sub_expresion+"end", strindex, 1)
+
+		fmt.Println("================sub_expresion_subs")
+		fmt.Println("-" + sub_expresion + "-")
+		fmt.Println(_expressions[current_index].Expression)
+
 		_expressions = append(_expressions, unit)
 		(*ctx)["_expressions"] = _expressions
+		fmt.Println("------------_expressions-------------------")
+		fmt.Println(_expressions)
+		fmt.Println("------------ctx-------------------")
+		fmt.Println(*ctx)
 		get_all_sub_expressions(unit.Index, ctx)
+
 	}
 
 }
@@ -521,6 +550,9 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			break
 
 		default:
+			if strings.Replace(token, " ", "", -1) == ""{
+				break
+			}
 			if tree.ClauseName == "select" {
 				tree = &CommandTree{ClauseName: "SELECT", TypeToken: "FIELD_SELECT_TO_SHOW", Clause: token}
 				CheckForPrefixes(tree)
