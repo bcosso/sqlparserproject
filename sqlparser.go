@@ -76,7 +76,7 @@ func (internalExec InternalActionExec) ExecActionFinal(tree CommandTree) {
 
 func IndexStringSlice(slice []string, value string) int {
 	for p, v := range slice {
-		if v == value {
+		if strings.ToLower(v) == strings.ToLower(value) {
 			return p
 		}
 	}
