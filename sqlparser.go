@@ -134,9 +134,9 @@ func control_hierarchy_tokenized(expression []string, opening_char string, endin
 	overall_counter := 0
 
 	for _, element := range expression {
-		if string(element) == opening_char {
+		if strings.ToLower(string(element)) == strings.ToLower(opening_char) {
 			counter_hierarchy++
-		} else if string(element) == ending_char {
+		} else if strings.ToLower(string(element)) == strings.ToLower(ending_char) {
 			counter_hierarchy--
 			if counter_hierarchy == 0 {
 				result_expression = expression[IndexStringSlice(expression, opening_char)+1 : overall_counter]
@@ -261,6 +261,7 @@ func Execute_parsing_process(command string) CommandTree {
 	ctx["count"] = count
 	get_all_sub_expressions(0, &ctx)
 	start_syntax_tree(command, &ctx)
+
 	_action.ExecActionFinal(*(ctx["_command_syntax_tree"].(*CommandTree)))
 
 	return *(ctx["_command_syntax_tree"].(*CommandTree))
@@ -299,6 +300,16 @@ func start_syntax_tree(command string, ctx *map[string]interface{}) {
 		fmt.Println(_command_syntax_tree)
 		fmt.Println("------------------------------------------------")
 		break
+
+	case "delete":
+		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "DELETE_COMMAND",
+			TypeToken: "DELETE"})
+		parse_delete_regions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1], ctx)
+
+		fmt.Println("End Syntax Tree-------------------------------")
+		fmt.Println(_command_syntax_tree)
+		fmt.Println("------------------------------------------------")
+		break
 	default:
 		// fmt.Println("start_syntax_tree-------------------------------")
 		// fmt.Println(first_exmpression)
@@ -320,6 +331,33 @@ func parse_select_regions(expression string, tree *CommandTree, ctx *map[string]
 		tree_part := CommandTree{ClauseName: "select", TypeToken: "FIELDS_SELECT", FullCommand: expression}
 		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
 		get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+	if IndexStringSlice(tokens, "from") > -1 {
+		tokenized_tables := control_hierarchy_tokenized(tokens, "from", "where")
+		tree_part := CommandTree{ClauseName: "from", TypeToken: "tables_from"} //,FullCommand:expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part)               // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+	if IndexStringSlice(tokens, "where") > -1 {
+		tokenized_filters := control_hierarchy_tokenized(tokens, "where", "go;")
+		tree_part := CommandTree{ClauseName: "where", TypeToken: "where_fields"}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		get_tokens_as_tree(tokenized_filters, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+}
+
+func parse_delete_regions(expression string, tree *CommandTree, ctx *map[string]interface{}) {
+	tokens := tokenize_command(expression)
+
+	if IndexStringSlice(tokens, "delete") > -1 {
+
+		fmt.Println("----parse_select_regions----")
+		fmt.Println(tokens)
+		fmt.Println("--------------------------------------------")
+		// tokenized_fields := control_hierarchy_tokenized(tokens, "delete", "from")
+		tree_part := CommandTree{ClauseName: "delete", TypeToken: "DELETE_COMMAND_TYPE", FullCommand: expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call get_tokens_as_tree
+		// get_tokens_as_tree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
 	}
 	if IndexStringSlice(tokens, "from") > -1 {
 		tokenized_tables := control_hierarchy_tokenized(tokens, "from", "where")
@@ -415,6 +453,7 @@ func check_expression_containing_token(index_token int, ctx *map[string]interfac
 	for index_expressions > 0 {
 
 		if (strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "select") == 0) ||
+			(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "delete") == 0) ||
 			(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "from") == 0) ||
 			(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "where") == 0) ||
 			(strings.Index(strings.ToLower(_expressions[index_expressions].Expression), "insert") == 0) ||
@@ -472,6 +511,9 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 		switch token {
 		case "select":
 			tree = &CommandTree{ClauseName: "SELECT", TypeToken: "SELECT_COMMAND", Clause: token}
+			break
+		case "delete":
+			tree = &CommandTree{ClauseName: "DELETE", TypeToken: "DELETE_COMMAND", Clause: token}
 			break
 		case "into":
 			tree = &CommandTree{ClauseName: "INTO", TypeToken: "INTO_COMMAND", Clause: token}
@@ -589,6 +631,7 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 			*index_tokenized_command += 2
 		}
 	}
+
 	_action.ExecAction(tree)
 	return *tree
 }
