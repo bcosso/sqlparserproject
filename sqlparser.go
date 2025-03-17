@@ -250,10 +250,11 @@ func Execute_parsing_process(command string) CommandTree {
 	var count int = 0
 
 	ctx := make(map[string]interface{})
-
+	ctx["_original_command"] = command
 	command = strings.ToLower(command)
 	command = strings.Join(tokenize_command(command)[:], " ")
-	unit := expression_unit{Index: 0, Expression: command}
+	ctx["_original_command"] = strings.Join(tokenize_command(ctx["_original_command"].(string))[:], " ")
+	unit := expression_unit{Index: 0, Expression: ctx["_original_command"].(string)}
 	_expressions = append(_expressions, unit)
 	ctx["_command_syntax_tree"] = &_command_syntax_tree
 	ctx["_expressions"] = _expressions
