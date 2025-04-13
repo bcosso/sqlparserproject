@@ -243,7 +243,7 @@ func get_all_sub_expressions(current_index int, ctx *map[string]interface{}) {
 
 }
 
-func Execute_parsing_process(command string) CommandTree {
+func ExecuteParsingProcess(command string) CommandTree {
 
 	var _command_syntax_tree CommandTree
 	var _expressions []expression_unit
