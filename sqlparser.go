@@ -41,38 +41,38 @@ type LogicGates struct {
 	ChildGates   []LogicGates
 }
 
-type ActionExec interface {
-	ExecAction(tree *CommandTree)
-	ExecActionFinal(tree CommandTree)
-}
-
-type InternalActionExec struct {
-	ActionExec
-}
-
-var _action ActionExec
-
 func isInteger(val float64) bool {
 	return val == float64(int(val))
 }
 
-func SetAction(action ActionExec) {
-	_action = action
-}
+// type ActionExec interface {
+// 	ExecAction(tree *CommandTree)
+// 	ExecActionFinal(tree CommandTree)
+// }
 
-func (internalExec InternalActionExec) ExecAction(tree *CommandTree) {
-	fmt.Println("-----------------------------------------------------------")
-	fmt.Println("CorrespondingAction")
-	fmt.Println("-----------------------------------------------------------")
-	fmt.Println(tree)
-}
+// type InternalActionExec struct {
+// 	ActionExec
+// }
 
-func (internalExec InternalActionExec) ExecActionFinal(tree CommandTree) {
-	fmt.Println("-----------------------------------------------------------")
-	fmt.Println("CorrespondingFinalAction")
-	fmt.Println("-----------------------------------------------------------")
-	fmt.Println(tree)
-}
+// var _action ActionExec
+
+// func SetAction(action ActionExec) {
+// 	_action = action
+// }
+
+// func (internalExec InternalActionExec) ExecAction(tree *CommandTree) {
+// 	fmt.Println("-----------------------------------------------------------")
+// 	fmt.Println("CorrespondingAction")
+// 	fmt.Println("-----------------------------------------------------------")
+// 	fmt.Println(tree)
+// }
+
+// func (internalExec InternalActionExec) ExecActionFinal(tree CommandTree) {
+// 	fmt.Println("-----------------------------------------------------------")
+// 	fmt.Println("CorrespondingFinalAction")
+// 	fmt.Println("-----------------------------------------------------------")
+// 	fmt.Println(tree)
+// }
 
 func IndexStringSlice(slice []string, value string) int {
 	for p, v := range slice {
@@ -262,7 +262,7 @@ func ExecuteParsingProcess(command string) CommandTree {
 	get_all_sub_expressions(0, &ctx)
 	start_syntax_tree(command, &ctx)
 
-	_action.ExecActionFinal(*(ctx["_command_syntax_tree"].(*CommandTree)))
+	// _action.ExecActionFinal(*(ctx["_command_syntax_tree"].(*CommandTree)))
 
 	return *(ctx["_command_syntax_tree"].(*CommandTree))
 }
@@ -632,7 +632,7 @@ func get_command(command string, tree *CommandTree, tokenized_command []string, 
 		}
 	}
 
-	_action.ExecAction(tree)
+	// _action.ExecAction(tree)
 	return *tree
 }
 
