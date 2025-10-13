@@ -205,7 +205,8 @@ func getAllSubExpressions(current_index int, ctx *map[string]interface{}) {
 
 	for strings.Index(_expressions[current_index].Expression, "(") > -1 {
 		sub_expresion := controlHierarchy(_expressions[current_index].Expression, "(", ")")
-		unit := expression_unit{Index: len(_expressions), Expression: sub_expresion}
+		new_sub_expresion := strings.Trim(sub_expresion, " ")
+		unit := expression_unit{Index: len(_expressions), Expression: new_sub_expresion}
 		strindex := " {" + strconv.Itoa(len(_expressions)) + "} "
 		_expressions[current_index].Expression = strings.Replace(_expressions[current_index].Expression, "("+sub_expresion+")", strindex, 1)
 		_expressions = append(_expressions, unit)
