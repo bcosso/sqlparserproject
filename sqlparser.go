@@ -353,6 +353,7 @@ func getTokensAsTreeDDL(tokenized_command []string, tree *CommandTree, ctx *map[
 
 	var currentTree CommandTree
 
+	previousType := ""
 	for index_token < len(tokenized_command) {
 
 		token := strings.Replace(tokenized_command[index_token], ",", "", 1) //replace all maybe
@@ -378,9 +379,15 @@ func getTokensAsTreeDDL(tokenized_command []string, tree *CommandTree, ctx *map[
 			case "identity":
 
 				tree.CommandParts[len(tree.CommandParts)-1].ExtraArguments = append(tree.CommandParts[len(tree.CommandParts)-1].ExtraArguments, "identity")
+			case "table":
+				//tree.CommandParts[len(tree.CommandParts)-1].TypeToken = "TABLE"
+				previousType = "table"
+			case "create":
 			default:
-				currentTree = CommandTree{ClauseName: tokenized_command[index_token]}
-				tree.CommandParts = append(tree.CommandParts, currentTree)
+				if previousType != "table" {
+					currentTree = CommandTree{ClauseName: tokenized_command[index_token]}
+					tree.CommandParts = append(tree.CommandParts, currentTree)
+				}
 			}
 
 		}
@@ -735,4 +742,3 @@ func checkIndex(command string) int {
 	}
 	return result
 }
-
