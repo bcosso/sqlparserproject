@@ -25,13 +25,14 @@ type ExpressionTemplate struct {
 }
 
 type CommandTree struct {
-	ClauseName   string
-	TypeToken    string
-	Clause       string
-	Alias        string
-	Prefix       string
-	FullCommand  string
-	CommandParts []CommandTree
+	ClauseName     string
+	TypeToken      string
+	Clause         string
+	Alias          string
+	Prefix         string
+	FullCommand    string
+	ExtraArguments []string
+	CommandParts   []CommandTree
 }
 
 type LogicGates struct {
@@ -311,6 +312,17 @@ func startSyntaxTree(command string, ctx *map[string]interface{}) {
 		fmt.Println(_command_syntax_tree)
 		fmt.Println("------------------------------------------------")
 		break
+
+	case "create":
+		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "CREATE",
+			TypeToken: "CREATE"})
+		parseCreateCommandRegions(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1], ctx)
+
+		fmt.Println("End Syntax Tree-------------------------------")
+		fmt.Println(_command_syntax_tree)
+		fmt.Println("------------------------------------------------")
+		break
+
 	default:
 		// fmt.Println("start_syntax_tree-------------------------------")
 		// fmt.Println(first_exmpression)
@@ -320,6 +332,69 @@ func startSyntaxTree(command string, ctx *map[string]interface{}) {
 	(*ctx)["_command_syntax_tree"] = _command_syntax_tree
 }
 
+func parseCreateCommandRegions(expression string, tree *CommandTree, ctx *map[string]interface{}) {
+	tokens := tokenizeCommand(expression)
+	_expressions := (*ctx)["_expressions"].([]expression_unit)
+
+	if IndexStringSlice(tokens, "table") > -1 {
+		//tokenized_fields := controlHierarchyTokenized(tokens, "(", ")")
+		tokenized_fields := tokenizeCommand(_expressions[0].Expression)
+		tree_part := CommandTree{ClauseName: tokens[2], TypeToken: "table", FullCommand: expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call getTokensAsTree
+
+		getTokensAsTreeDDL(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+
+	}
+}
+
+func getTokensAsTreeDDL(tokenized_command []string, tree *CommandTree, ctx *map[string]interface{}) []CommandTree {
+	//var tree_curren []CommandTree
+	index_token := 0
+
+	var currentTree CommandTree
+
+	previousType := ""
+	for index_token < len(tokenized_command) {
+
+		token := strings.Replace(tokenized_command[index_token], ",", "", 1) //replace all maybe
+		index_token_expression := checkIndex(token)
+		_expressions := (*ctx)["_expressions"].([]expression_unit)
+
+		if index_token_expression > -1 {
+
+			currentTree = CommandTree{ClauseName: "COLUMNS", TypeToken: "COLUMNS", Clause: _expressions[index_token_expression].Expression}
+			fmt.Println("----_expressions[index_token].Expression----")
+
+			fmt.Println(_expressions[index_token_expression].Expression)
+			fmt.Println("--------------------------------------------")
+			getTokensAsTreeDDL(tokenizeCommand(_expressions[index_token_expression].Expression), &currentTree, ctx)
+			tree.CommandParts = append(tree.CommandParts, currentTree)
+
+		} else {
+			switch strings.Replace(strings.ToLower(tokenized_command[index_token]), ",", "", -1) {
+			case "string":
+				tree.CommandParts[len(tree.CommandParts)-1].TypeToken = "STRING"
+			case "int":
+				tree.CommandParts[len(tree.CommandParts)-1].TypeToken = "INT"
+			case "identity":
+
+				tree.CommandParts[len(tree.CommandParts)-1].ExtraArguments = append(tree.CommandParts[len(tree.CommandParts)-1].ExtraArguments, "identity")
+			case "table":
+				//tree.CommandParts[len(tree.CommandParts)-1].TypeToken = "TABLE"
+				previousType = "table"
+			case "create":
+			default:
+				if previousType != "table" {
+					currentTree = CommandTree{ClauseName: tokenized_command[index_token]}
+					tree.CommandParts = append(tree.CommandParts, currentTree)
+				}
+			}
+
+		}
+		index_token++
+	}
+	return tree.CommandParts
+}
 func parseSelectRegions(expression string, tree *CommandTree, ctx *map[string]interface{}) {
 	tokens := tokenizeCommand(expression)
 
