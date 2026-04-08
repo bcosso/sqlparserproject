@@ -303,6 +303,16 @@ func startSyntaxTree(command string, ctx *map[string]interface{}) {
 		fmt.Println("------------------------------------------------")
 		break
 
+	case "update":
+		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "UPDATE_COMMAND",
+			TypeToken: "UPDATE"})
+		parseUpdateRegion(_expressions[0].Expression, &_command_syntax_tree.CommandParts[len(_command_syntax_tree.CommandParts)-1], ctx)
+
+		fmt.Println("End Syntax Tree-------------------------------")
+		fmt.Println(_command_syntax_tree)
+		fmt.Println("------------------------------------------------")
+		break
+
 	case "delete":
 		_command_syntax_tree.CommandParts = append(_command_syntax_tree.CommandParts, CommandTree{ClauseName: "DELETE_COMMAND",
 			TypeToken: "DELETE"})
@@ -478,6 +488,28 @@ func parseInsertRegion(expression string, tree *CommandTree, ctx *map[string]int
 	}
 }
 
+func parseUpdateRegion(expression string, tree *CommandTree, ctx *map[string]interface{}) {
+	tokens := tokenizeCommand(expression)
+
+	if IndexStringSlice(tokens, "update") > -1 {
+		tokenized_fields := controlHierarchyTokenized(tokens, "update", "set")
+		tree_part := CommandTree{ClauseName: "update", TypeToken: "update_table", FullCommand: expression}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call getTokensAsTree
+		getTokensAsTree(tokenized_fields, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+	if IndexStringSlice(tokens, "set") > -1 {
+		tokenized_tables := controlHierarchyTokenized(tokens, "set", "where")
+		tree_part := CommandTree{ClauseName: "set", TypeToken: "fields_update"}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call getTokensAsTree
+		getTokensAsTree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+	if IndexStringSlice(tokens, "where") > -1 {
+		tokenized_tables := controlHierarchyTokenized(tokens, "where", "go;")
+		tree_part := CommandTree{ClauseName: "where", TypeToken: "where_fields"}
+		tree.CommandParts = append(tree.CommandParts, tree_part) // has to call getTokensAsTree
+		getTokensAsTree(tokenized_tables, &tree.CommandParts[len(tree.CommandParts)-1], ctx)
+	}
+}
 func parseCaseRegions(expression string, tree *CommandTree, ctx *map[string]interface{}) {
 	tokens := tokenizeCommand(expression)
 
@@ -704,6 +736,8 @@ func getCommand(command string, tree *CommandTree, tokenized_command []string, i
 
 			} else if tree.ClauseName == "values" {
 				tree = &CommandTree{ClauseName: "VALUES", TypeToken: "COLUMN_VALUES_COMMAND", Clause: token}
+			} else if tree.ClauseName == "update" {
+				tree = &CommandTree{ClauseName: "UPDATE_TABLE", TypeToken: "TABLE", Clause: token}
 
 			} else if *index_tokenized_command > 0 && strings.Index(tokenized_command[*index_tokenized_command-1], "into") > -1 {
 				tree = &CommandTree{ClauseName: " ", TypeToken: "TABLE", Clause: token}
